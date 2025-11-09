@@ -2,53 +2,39 @@ import os
 import io
 import numpy as np
 from flask import Flask, request, render_template_string
-from tensorflow.keras.models import Sequential, load_model
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout
-from tensorflow.keras.datasets import mnist
-from tensorflow.keras.utils import to_categorical
+from tensorflow.keras.models import load_model
 from PIL import Image
+import requests
 
 app = Flask(__name__)
 
 # ================================
-# 1️⃣ TRAIN OR LOAD THE CNN MODEL
+# 1️⃣ LOAD PRE-TRAINED CNN MODEL
 # ================================
 MODEL_PATH = "mnist_cnn_model.h5"
+MODEL_URL = "https://github.com/ghoshrajarshi425/Handwritten-Digit-Recognition/releases/download/v1.0/mnist_cnn_model.h5"
 
-def create_and_train_model():
-    print("🔄 Training model... This will take a few minutes on first run.")
-    (x_train, y_train), (x_test, y_test) = mnist.load_data()
+def download_model():
+    """Download the pre-trained model from GitHub release."""
+    print("⬇️ Downloading pre-trained model...")
+    response = requests.get(MODEL_URL, stream=True)
+    if response.status_code == 200:
+        with open(MODEL_PATH, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+        print("✅ Model downloaded successfully")
+        return True
+    return False
 
-    # Normalize & reshape
-    x_train = x_train.reshape(-1, 28, 28, 1).astype("float32") / 255.0
-    x_test = x_test.reshape(-1, 28, 28, 1).astype("float32") / 255.0
-
-    y_train = to_categorical(y_train, 10)
-    y_test = to_categorical(y_test, 10)
-
-    model = Sequential([
-        Conv2D(32, (3,3), activation='relu', input_shape=(28,28,1)),
-        MaxPooling2D((2,2)),
-        Conv2D(64, (3,3), activation='relu'),
-        MaxPooling2D((2,2)),
-        Flatten(),
-        Dense(128, activation='relu'),
-        Dropout(0.3),
-        Dense(10, activation='softmax')
-    ])
-
-    model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
-    model.fit(x_train, y_train, epochs=3, batch_size=128, validation_data=(x_test, y_test))
-    model.save(MODEL_PATH)
-    print(f"✅ Model trained and saved as {MODEL_PATH}")
-    return model
-
-# Load model if available
+# Load or download model
 if os.path.exists(MODEL_PATH):
     print("✅ Found existing model. Loading it...")
     model = load_model(MODEL_PATH)
 else:
-    model = create_and_train_model()
+    if download_model():
+        model = load_model(MODEL_PATH)
+    else:
+        raise RuntimeError("❌ Could not download pre-trained model. Please check the MODEL_URL.")
 
 # ================================
 # 2️⃣ SIMPLE HTML PAGE
